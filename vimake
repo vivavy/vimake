@@ -74,13 +74,13 @@ for dep in build:
 
 for dep in modules:
     root = os.getcwd()
-    for deppath in glob(root.removesuffix("/")+"/*/Vimake"):
+    for deppath in glob(root.removesuffix("/")+"/**/Vimake", recursive=True):
         with open(deppath) as f:
             depconfig = json.load(f)
             if depconfig["module"] == dep:
                 break
     else:
-        print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" not found"+RESET)
+        print(PREFIX+ERR+"Dependency module "+YELLOW+dep+ERR+" not found"+RESET)
         sys.exit(1)
     deppath = os.path.dirname(deppath)
     os.chdir(os.path.join(root, deppath))
@@ -120,7 +120,7 @@ if build is not None:
             os.remove(file)
     for cmd in build["commands"]:
         try:
-            e = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            e = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = e.communicate()
         except subprocess.CalledProcessError as e:
             print(PREFIX+ERR+"Build failed"+RESET)
