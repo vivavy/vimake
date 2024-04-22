@@ -1,24 +1,18 @@
-{
-    "module": "test_module",
-    "impls": {
-        "main": {
-            "deps": {
-                "build": [
-                    "g++"
-                ],
-                "modules": []
-            },
-            "actions": {
-                "build": {
-                    "commands": [
-                        "g++ -pass-exit-codes -o test test.cc"
-                    ],
-                    "deps": [],
-                    "files": [
-                        "test"
-                    ]
-                }
-            }
-        }
-    }
-}
+module: test_module
+impls:
+  main:
+      deps:
+          build:
+              - g++
+          modules: []
+      actions:
+          build:
+              commands:
+                  - g++
+                  - -pass-exit-codes
+                  - -o
+                  - test
+                  - test.cc
+              deps:
+              files:
+                  - test
