@@ -1,6 +1,7 @@
 #!/bin/env python3
 import os, sys, json, subprocess, colorama, yaml
 from glob import glob
+from pprint import pprint as pp
 
 if "VIMAKE_LEVEL" in os.environ:
     lvl = int(os.environ["VIMAKE_LEVEL"])
@@ -9,13 +10,14 @@ else:
     os.environ["VIMAKE_LEVEL"] = str(lvl+1)
 
 
-ERR = colorama.Fore.RED + colorama.Style.BRIGHT
-TASK = colorama.Fore.BLUE + colorama.Style.BRIGHT
-OK = colorama.Fore.GREEN + colorama.Style.BRIGHT
+PREFIX = "    "*lvl
+
+ERR = PREFIX + colorama.Fore.RED + colorama.Style.BRIGHT
+TASK = PREFIX + colorama.Fore.BLUE + colorama.Style.BRIGHT
+ITASK = colorama.Fore.BLUE + colorama.Style.BRIGHT
+OK = PREFIX + colorama.Fore.GREEN + colorama.Style.BRIGHT
 RESET = colorama.Style.RESET_ALL
 YELLOW = colorama.Fore.YELLOW + colorama.Style.BRIGHT
-ITALIC = colorama.Style.DIM
-PREFIX = "    "*lvl
 
 # 1. read the config file
 
@@ -26,24 +28,62 @@ if not os.path.exists(config_file):
     sys.exit(1)
 
 with open(config_file) as f:
-    config = yaml.safe_load(f)
+    config = globconfig = yaml.safe_load(f)
 
 # 2. read the module
 
 module = config["module"]
 
+ready_impls = {}
+
+for ready_impl in globconfig["impls"]:
+    ready_impls[ready_impl] = globconfig["impls"][ready_impl]
+
+
+def fill_impl(dict_or_list, impl, root=None):
+    if root is None:
+        root = dict_or_list
+    if isinstance(dict_or_list, dict):
+        for k, v in dict_or_list.items():
+            if isinstance(v, str):
+                dict_or_list[k] = v.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"]))
+            else:
+                fill_impl(v, impl, root)
+    elif isinstance(dict_or_list, list):
+        for n, i in enumerate(dict_or_list):
+            if isinstance(i, str):
+                dict_or_list[n] = i.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"]))
+            else:
+                fill_impl(i, impl, root)
+
+
+if "autoimpls" in globconfig:
+    base_impl = globconfig["autoimpls"]["source"]
+    for unready_impl in globconfig["autoimpls"]["dest"]:
+        if unready_impl not in ready_impls:
+            # generate the impl from source impl to dest impls
+            uimpl = {**globconfig["impls"][base_impl]}
+            uimpl.update(globconfig["autoimpls"]["dest"][unready_impl])
+            ready_impls[unready_impl] = fill_impl(uimpl, unready_impl)
+
+# print("DEBUG: IMPLS:")
+# pp(ready_impls)
+
 if len(sys.argv) == 1:
-    impl = config["impls"].keys()[0]
-    config = config["impls"].values()[0]
+    impl = ready_impls.keys()[0]
+    config = ready_impls[impl]
 elif len(sys.argv) == 2:
     impl = sys.argv[1]
-    config = config["impls"][impl]
+    if impl not in ready_impls:
+        print(ERR+"1 No such impl: "+YELLOW+impl+RESET)
+        sys.exit(1)
+    config = ready_impls[impl]
 elif len(sys.argv) == 3:
     if not sys.argv[2].startswith("-"):
-        print(PREFIX+ERR+"Syntax error: "+YELLOW+sys.argv[2]+RESET)
+        print(ERR+"2 Syntax error: "+YELLOW+sys.argv[2]+RESET)
         sys.exit(1)
     if sys.argv[1] not in config["impls"]:
-        print(PREFIX+ERR+"No such impl: "+YELLOW+sys.argv[1]+RESET)
+        print(ERR+"3 No such impl: "+YELLOW+sys.argv[1]+RESET)
         sys.exit(1)
     impl = sys.argv[1]
     config = config["impls"][impl]
@@ -53,7 +93,7 @@ else:
     print("usage: vimake [impl] [flags]")
     sys.exit(1)
 
-print(PREFIX+TASK+"Module "+YELLOW+module+(TASK+" impl "+YELLOW+impl if not lvl else "")+RESET)
+print(TASK+"Module "+YELLOW+module+(ITASK+" impl "+YELLOW+impl if not lvl else "")+RESET)
 
 # 3. read the dependencies
 
@@ -61,6 +101,7 @@ build, modules = config["deps"]["build"], config["deps"]["modules"]
 
 for dep in build:
     try:
+        dep = dep.replace("${ImplName}", impl)
         data = subprocess.check_output([dep, "--version"])
         if data.decode().find("not found") != -1:
             print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" not found"+RESET)
@@ -115,28 +156,51 @@ if build is None and run is None and debug is None:
 if build is not None:
     print(PREFIX+TASK+"Building"+RESET)
     for file in build["files"]:
+        file = file.replace("${ImplName}", impl)
         file = os.path.join(os.getcwd(), file)
         if os.path.exists(file):
             os.remove(file)
     for cmd in build["commands"]:
         try:
-            e = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-            out, err = e.communicate()
+            if cmd.__class__ == str:
+                if cmd.starswith("@IncludeImpl"):
+                    incimpl = cmd.split()[1]
+                    cmd = []
+                    for comd in globconfig["impls"][incimpl]["actions"]["build"]["commands"]:
+                        for n, i in enumerate(comd):
+                            comd[n] = i.replace("${ImplName}", impl)
+                        cmd.append(comd)
+                else:
+                    cmd = cmd.split()
+                    for n, i in enumerate(cmd):
+                        cmd[n] = i.replace("${ImplName}", impl)
+                    cmd = [cmd]
+            else:
+                for n, i in enumerate(cmd):
+                    cmd[n] = i.replace("${ImplName}", impl)
+                cmd = [cmd]
+            # print(cmd)
+            for n, i in enumerate(cmd):
+                e = subprocess.Popen(i, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                out, err = e.communicate()
+                out = out.decode().replace("${ImplName}", impl)
+                err = err.decode().replace("${ImplName}", impl)
         except subprocess.CalledProcessError as e:
-            print(PREFIX+ERR+"Build failed"+RESET)
-            print(PREFIX+ERR+"Command: "+YELLOW+" ".join(cmd)+RESET)
-            print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
-            print(PREFIX+ERR+"Output: "+RESET)
-            print(PREFIX+out.decode().replace("\n", "\n"+PREFIX+PREFIX))
-            print(PREFIX+err.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            print(ERR+"Build failed"+RESET)
+            print(ERR+"Command: "+YELLOW+" ".join(cmd)+RESET)
+            print(ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
+            print(ERR+"Output: "+RESET)
+            print(PREFIX+out.replace("\n", "\n"+PREFIX+"    "))
+            print(PREFIX+err.replace("\n", "\n"+PREFIX+"    "))
             sys.exit(1)
     for file in build["files"]:
+        file = file.replace("${ImplName}", impl)
         if not os.path.exists(file):
             print(PREFIX+ERR+"Build failed"+RESET)
             print(PREFIX+ERR+"Output file not detected: "+YELLOW+file+RESET)
             print(PREFIX+ERR+"Last command output: "+RESET)
-            print(PREFIX+out.decode().replace("\n", "\n"+PREFIX+PREFIX))
-            print(PREFIX+err.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+out.replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+err.replace("\n", "\n"+PREFIX+PREFIX))
             sys.exit(1)
 
 print(PREFIX+OK+"Build OK"+RESET)
@@ -145,7 +209,12 @@ if run is not None:
     print(PREFIX+TASK+"Running"+RESET)
     for cmd in run["commands"]:
         try:
-            subprocess.run(cmd, shell=True)
+            if cmd.__class__ == str:
+                cmd = cmd.split()
+            for n, i in enumerate(cmd):
+                cmd[i] = cmd[i].replace("${ImplName}", impl)
+            subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            out, err = e.communicate()
         except subprocess.CalledProcessError as e:
             print(PREFIX+ERR+"Run failed"+RESET)
             print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
@@ -161,12 +230,14 @@ if debug is not None:
         try:
             e = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = e.communicate()
+            out = out.decode().replace("${ImplName}", impl)
+            err = err.decode().replace("${ImplName}", impl)
         except subprocess.CalledProcessError as e:
             print(PREFIX+ERR+"Debug failed"+RESET)
             print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
             print(PREFIX+ERR+"Output: "+RESET)
-            print(PREFIX+out.decode().replace("\n", "\n"+PREFIX+PREFIX))
-            print(PREFIX+err.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+out.replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+err.replace("\n", "\n"+PREFIX+PREFIX))
             sys.exit(1)
     
     print(OK+"Debug OK"+RESET)

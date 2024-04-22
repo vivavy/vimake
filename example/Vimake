@@ -14,10 +14,8 @@ impls:
                         - -o
                         - test
                         - test.cc
-                deps:
                 files:
                     - test
             run:
                 commands:
                     - ./test
-                deps:
