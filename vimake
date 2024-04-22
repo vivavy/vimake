@@ -64,7 +64,7 @@ for dep in modules:
     deppath = os.path.dirname(deppath)
     os.chdir(os.path.join(root, deppath))
     try:
-        sp = subprocess.run(["vimake"])
+        sp = subprocess.run(["vimake"] + (["-d"] if "-d" in sys.argv else []))
     except subprocess.CalledProcessError as e:
         """print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" failed"+RESET)
         print(PREFIX+ERR+"Error code: "+str(e.returncode)+RESET)
@@ -74,6 +74,11 @@ for dep in modules:
     if sp.returncode:
         sys.exit(1)
     os.chdir(root)
+
+if "-d" in sys.argv:
+    if lvl == 0:
+        print(PREFIX+OK+"Depencies checked"+RESET)
+    sys.exit()
 
 # 4. read the actions
 
