@@ -8,8 +8,8 @@ impls:
       actions:
           build:
               commands:
+                0:
                   - g++
-                  - -pass-exit-codes
                   - -o
                   - test
                   - test.cc

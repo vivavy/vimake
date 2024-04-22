@@ -9,10 +9,11 @@ impls:
         actions:
             build:
                 commands:
-                    - g++
-                    - -o
-                    - test
-                    - test.cc
+                    0:
+                        - g++
+                        - -o
+                        - test
+                        - test.cc
                 deps:
                 files:
                     - test

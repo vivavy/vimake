@@ -76,7 +76,7 @@ for dep in modules:
     root = os.getcwd()
     for deppath in glob(root.removesuffix("/")+"/**/Vimake", recursive=True):
         with open(deppath) as f:
-            depconfig = json.load(f)
+            depconfig = yaml.safe_load(f)
             if depconfig["module"] == dep:
                 break
     else:
@@ -118,8 +118,11 @@ if build is not None:
         file = os.path.join(os.getcwd(), file)
         if os.path.exists(file):
             os.remove(file)
+    print(build["commands"].values())
     for cmd in build["commands"]:
+        cmd = build["commands"][cmd]
         try:
+            print(cmd)
             e = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = e.communicate()
         except subprocess.CalledProcessError as e:
