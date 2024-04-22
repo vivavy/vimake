@@ -1,0 +1,20 @@
+{
+    "module": "test_module",
+    "deps": {
+        "build": [
+            "g++"
+        ],
+        "modules": []
+    },
+    "actions": {
+        "build": {
+            "commands": [
+                "g++ -pass-exit-codes -o test test.cc"
+            ],
+            "deps": [],
+            "files": [
+                "test"
+            ]
+        }
+    }
+}

@@ -1,0 +1,149 @@
+#!/bin/env python3
+import os, sys, json, subprocess, colorama
+from glob import glob
+
+if "VIMAKE_LEVEL" in os.environ:
+    lvl = int(os.environ["VIMAKE_LEVEL"])
+else:
+    lvl = 0
+    os.environ["VIMAKE_LEVEL"] = str(lvl+1)
+
+
+ERR = colorama.Fore.RED + colorama.Style.BRIGHT
+TASK = colorama.Fore.BLUE + colorama.Style.BRIGHT
+OK = colorama.Fore.GREEN + colorama.Style.BRIGHT
+RESET = colorama.Style.RESET_ALL
+YELLOW = colorama.Fore.YELLOW + colorama.Style.BRIGHT
+ITALIC = colorama.Style.DIM
+PREFIX = "    "*lvl
+
+# 1. read the config file
+
+config_file = os.path.join(os.getcwd(), "Vimake")
+
+if not os.path.exists(config_file):
+    print(ERR+"No config file found"+RESET)
+    sys.exit(1)
+
+with open(config_file) as f:
+    config = json.load(f)
+
+# 2. read the module
+
+module = config["module"]
+
+print(PREFIX+TASK+"Module "+YELLOW+module+RESET)
+
+# 3. read the dependencies
+
+build, modules = config["deps"]["build"], config["deps"]["modules"]
+
+for dep in build:
+    try:
+        data = subprocess.check_output([dep, "--version"])
+        if data.decode().find("not found") != -1:
+            print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" not found"+RESET)
+            sys.exit(1)
+    except subprocess.CalledProcessError:
+        print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" is unavailable"+RESET)
+        sys.exit(1)
+    except FileNotFoundError:
+        print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" not found"+RESET)
+        sys.exit(1)
+
+for dep in modules:
+    root = os.getcwd()
+    for deppath in glob(root.removesuffix("/")+"/*/Vimake"):
+        with open(deppath) as f:
+            depconfig = json.load(f)
+            if depconfig["module"] == dep:
+                break
+    else:
+        print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" not found"+RESET)
+        sys.exit(1)
+    deppath = os.path.dirname(deppath)
+    os.chdir(os.path.join(root, deppath))
+    try:
+        sp = subprocess.run(["vimake"])
+    except subprocess.CalledProcessError as e:
+        """print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" failed"+RESET)
+        print(PREFIX+ERR+"Error code: "+str(e.returncode)+RESET)
+        print(PREFIX+ERR+"Output: "+RESET)
+        print(e.output.decode())"""
+        sys.exit(1)
+    if sp.returncode:
+        sys.exit(1)
+    os.chdir(root)
+
+# 4. read the actions
+
+actions = config["actions"]
+build = actions.get("build", None)
+run = actions.get("run", None)
+debug = actions.get("debug", None)
+
+if build is None and run is None and debug is None:
+    print(PREFIX+ERR+"No build, run or debug action found"+RESET)
+    sys.exit(1)
+
+if build is not None:
+    print(PREFIX+TASK+"Building"+RESET)
+    for file in build["files"]:
+        file = os.path.join(os.getcwd(), file)
+        if os.path.exists(file):
+            os.remove(file)
+    for cmd in build["commands"]:
+        try:
+            e = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            out, err = e.communicate()
+        except subprocess.CalledProcessError as e:
+            print(PREFIX+ERR+"Build failed"+RESET)
+            print(PREFIX+ERR+"Command: "+YELLOW+" ".join(cmd)+RESET)
+            print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
+            print(PREFIX+ERR+"Output: "+RESET)
+            print(PREFIX+out.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+err.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            sys.exit(1)
+    for file in build["files"]:
+        if not os.path.exists(file):
+            print(PREFIX+ERR+"Build failed"+RESET)
+            print(PREFIX+ERR+"Output file not detected: "+YELLOW+file+RESET)
+            print(PREFIX+ERR+"Last command output: "+RESET)
+            print(PREFIX+out.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+err.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            sys.exit(1)
+
+print(PREFIX+OK+"Build OK"+RESET)
+
+if run is not None:
+    print(PREFIX+TASK+"Running"+RESET)
+    for cmd in run["commands"]:
+        try:
+            subprocess.run(cmd, shell=True)
+        except subprocess.CalledProcessError as e:
+            print(PREFIX+ERR+"Run failed"+RESET)
+            print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
+            print(PREFIX+ERR+"Output: "+RESET)
+            print(e.output.decode())
+            sys.exit(1)
+
+    print(OK+"Run OK"+RESET)
+
+if debug is not None:
+    print(PREFIX+TASK+"Debugging"+RESET)
+    for cmd in debug["commands"]:
+        try:
+            e = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            out, err = e.communicate()
+        except subprocess.CalledProcessError as e:
+            print(PREFIX+ERR+"Debug failed"+RESET)
+            print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
+            print(PREFIX+ERR+"Output: "+RESET)
+            print(PREFIX+out.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+err.decode().replace("\n", "\n"+PREFIX+PREFIX))
+            sys.exit(1)
+    
+    print(OK+"Debug OK"+RESET)
+
+if lvl == 0:
+    del os.environ["VIMAKE_LEVEL"]

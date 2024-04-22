@@ -1,0 +1,28 @@
+{
+    "module": "main",
+    "deps": {
+        "build": [
+            "g++"
+        ],
+        "modules": [
+            "test_module"
+        ]
+    },
+    "actions": {
+        "build": {
+            "commands": [
+                "g++ -o test test.cc"
+            ],
+            "deps": [],
+            "files": [
+                "test"
+            ]
+        },
+        "run": {
+            "commands": [
+                "./test"
+            ],
+            "deps": []
+        }
+    }
+}
