@@ -32,7 +32,28 @@ with open(config_file) as f:
 
 module = config["module"]
 
-print(PREFIX+TASK+"Module "+YELLOW+module+RESET)
+if len(sys.argv) == 1:
+    impl = config["impls"].keys()[0]
+    config = config["impls"].values()[0]
+elif len(sys.argv) == 2:
+    impl = sys.argv[1]
+    config = config["impls"][impl]
+elif len(sys.argv) == 3:
+    if not sys.argv[2].startswith("-"):
+        print(PREFIX+ERR+"Syntax error: "+YELLOW+sys.argv[2]+RESET)
+        sys.exit(1)
+    if sys.argv[1] not in config["impls"]:
+        print(PREFIX+ERR+"No such impl: "+YELLOW+sys.argv[1]+RESET)
+        sys.exit(1)
+    impl = sys.argv[1]
+    config = config["impls"][impl]
+    if "d" in sys.argv[2]:
+        sys.argv.append("-d")
+else:
+    print("usage: vimake [impl] [flags]")
+    sys.exit(1)
+
+print(PREFIX+TASK+"Module "+YELLOW+module+(TASK+" impl "+YELLOW+impl if not lvl else "")+RESET)
 
 # 3. read the dependencies
 
@@ -64,7 +85,7 @@ for dep in modules:
     deppath = os.path.dirname(deppath)
     os.chdir(os.path.join(root, deppath))
     try:
-        sp = subprocess.run(["vimake"] + (["-d"] if "-d" in sys.argv else []))
+        sp = subprocess.run(["vimake", impl] + (["-d"] if "-d" in sys.argv else []))
     except subprocess.CalledProcessError as e:
         """print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" failed"+RESET)
         print(PREFIX+ERR+"Error code: "+str(e.returncode)+RESET)
