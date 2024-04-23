@@ -7,7 +7,7 @@ cd vimake
 sudo ./install
 ```
 
-# Uninstallation
+# Installation
 ```sh
 git clone https://github.com/vivavy/vimake.git
 cd vimake
