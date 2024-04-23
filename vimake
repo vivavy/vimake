@@ -20,8 +20,8 @@ OK = PREFIX + colorama.Fore.GREEN + colorama.Style.BRIGHT
 RESET = colorama.Style.RESET_ALL
 YELLOW = colorama.Fore.YELLOW + colorama.Style.BRIGHT
 
-print(PREFIX+"Vimake root: "+os.environ["VIMAKE_ROOT"])
-print(PREFIX+"Real root: "+os.getcwd())
+# print(PREFIX+"Vimake root: "+os.environ["VIMAKE_ROOT"])
+# print(PREFIX+"Real root: "+os.getcwd())
 
 bitness = struct.calcsize("P") * 8
 
