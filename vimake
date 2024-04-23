@@ -59,14 +59,14 @@ def fill_impl(dict_or_list, impl, root=None):
         for k, v in dict_or_list.items():
             if isinstance(v, str):
                 dict_or_list[k] = v.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"])).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
             else:
                 fill_impl(v, impl, root)
     elif isinstance(dict_or_list, list):
         for n, i in enumerate(dict_or_list):
             if isinstance(i, str):
                 dict_or_list[n] = i.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"])).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
             else:
                 fill_impl(i, impl, root)
 
@@ -119,7 +119,7 @@ build, modules = config["deps"]["build"], config["deps"]["modules"]
 for dep in build:
     try:
         dep = dep.replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
         data = subprocess.check_output([dep, "--version"])
         if data.decode().find("not found") != -1:
             print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" not found"+RESET)
@@ -175,7 +175,7 @@ if build is not None:
     print(PREFIX+TASK+"Building"+RESET)
     for file in build["files"]:
         file = file.replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
         file = os.path.join(os.getcwd(), file)
         if os.path.exists(file):
             os.remove(file)
@@ -183,33 +183,33 @@ if build is not None:
     for cmd in build["commands"]:
         try:
             if cmd.__class__ == str:
-                if cmd.starswith("@IncludeImpl"):
+                if cmd.startswith("@IncludeImpl"):
                     incimpl = cmd.split()[1]
                     cmd = []
                     for comd in globconfig["impls"][incimpl]["actions"]["build"]["commands"]:
                         for n, i in enumerate(comd):
                             comd[n] = i.replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
                         cmd.append(comd)
                 else:
                     cmd = cmd.split()
                     for n, i in enumerate(cmd):
                         cmd[n] = i.replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
                     cmd = [cmd]
             else:
                 for n, i in enumerate(cmd):
                     cmd[n] = i.replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
                 cmd = [cmd]
             # print(cmd)
             for n, i in enumerate(cmd):
                 e = subprocess.Popen(i, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 out, err = e.communicate()
                 out = out.decode().replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
                 err = err.decode().replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
                 outputs += out + err
         except subprocess.CalledProcessError as e:
             print(ERR+"Build failed"+RESET)
@@ -220,7 +220,7 @@ if build is not None:
             sys.exit(1)
     for file in build["files"]:
         file = file.replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
         if not os.path.exists(file):
             print(PREFIX+ERR+"Build failed"+RESET)
             print(PREFIX+ERR+"Output file not detected: "+YELLOW+file+RESET)
@@ -238,7 +238,7 @@ if run is not None:
                 cmd = cmd.split()
             for n, i in enumerate(cmd):
                 cmd[i] = cmd[i].replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
             subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = e.communicate()
         except subprocess.CalledProcessError as e:
@@ -257,9 +257,9 @@ if debug is not None:
             e = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = e.communicate()
             out = out.decode().replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
             err = err.decode().replace("${ImplName}", impl).\
-                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                    replace("${ModuleRoot}", os.environ["VIMAKE_ROOT"])
         except subprocess.CalledProcessError as e:
             print(PREFIX+ERR+"Debug failed"+RESET)
             print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
