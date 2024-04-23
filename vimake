@@ -8,6 +8,7 @@ if "VIMAKE_LEVEL" in os.environ:
 else:
     lvl = 0
     os.environ["VIMAKE_LEVEL"] = str(lvl+1)
+    os.environ["VIMAKE_ROOT"] = os.getcwd()
 
 
 PREFIX = "    "*lvl
@@ -18,6 +19,9 @@ ITASK = colorama.Fore.BLUE + colorama.Style.BRIGHT
 OK = PREFIX + colorama.Fore.GREEN + colorama.Style.BRIGHT
 RESET = colorama.Style.RESET_ALL
 YELLOW = colorama.Fore.YELLOW + colorama.Style.BRIGHT
+
+print(PREFIX+"Vimake root: "+os.environ["VIMAKE_ROOT"])
+print(PREFIX+"Real root: "+os.getcwd())
 
 bitness = struct.calcsize("P") * 8
 
@@ -54,13 +58,15 @@ def fill_impl(dict_or_list, impl, root=None):
     if isinstance(dict_or_list, dict):
         for k, v in dict_or_list.items():
             if isinstance(v, str):
-                dict_or_list[k] = v.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"]))
+                dict_or_list[k] = v.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"])).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
             else:
                 fill_impl(v, impl, root)
     elif isinstance(dict_or_list, list):
         for n, i in enumerate(dict_or_list):
             if isinstance(i, str):
-                dict_or_list[n] = i.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"]))
+                dict_or_list[n] = i.replace("${ImplName}", impl).replace("${param:bitness}", str(root["params"]["bitness"])).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
             else:
                 fill_impl(i, impl, root)
 
@@ -112,7 +118,8 @@ build, modules = config["deps"]["build"], config["deps"]["modules"]
 
 for dep in build:
     try:
-        dep = dep.replace("${ImplName}", impl)
+        dep = dep.replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
         data = subprocess.check_output([dep, "--version"])
         if data.decode().find("not found") != -1:
             print(PREFIX+ERR+"Dependency "+YELLOW+dep+ERR+" not found"+RESET)
@@ -167,7 +174,8 @@ if build is None and run is None and debug is None:
 if build is not None:
     print(PREFIX+TASK+"Building"+RESET)
     for file in build["files"]:
-        file = file.replace("${ImplName}", impl)
+        file = file.replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
         file = os.path.join(os.getcwd(), file)
         if os.path.exists(file):
             os.remove(file)
@@ -180,23 +188,28 @@ if build is not None:
                     cmd = []
                     for comd in globconfig["impls"][incimpl]["actions"]["build"]["commands"]:
                         for n, i in enumerate(comd):
-                            comd[n] = i.replace("${ImplName}", impl)
+                            comd[n] = i.replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
                         cmd.append(comd)
                 else:
                     cmd = cmd.split()
                     for n, i in enumerate(cmd):
-                        cmd[n] = i.replace("${ImplName}", impl)
+                        cmd[n] = i.replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
                     cmd = [cmd]
             else:
                 for n, i in enumerate(cmd):
-                    cmd[n] = i.replace("${ImplName}", impl)
+                    cmd[n] = i.replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
                 cmd = [cmd]
             # print(cmd)
             for n, i in enumerate(cmd):
                 e = subprocess.Popen(i, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 out, err = e.communicate()
-                out = out.decode().replace("${ImplName}", impl)
-                err = err.decode().replace("${ImplName}", impl)
+                out = out.decode().replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+                err = err.decode().replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
                 outputs += out + err
         except subprocess.CalledProcessError as e:
             print(ERR+"Build failed"+RESET)
@@ -206,7 +219,8 @@ if build is not None:
             print(PREFIX+outputs.replace("\n", "\n"+PREFIX+"    "))
             sys.exit(1)
     for file in build["files"]:
-        file = file.replace("${ImplName}", impl)
+        file = file.replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
         if not os.path.exists(file):
             print(PREFIX+ERR+"Build failed"+RESET)
             print(PREFIX+ERR+"Output file not detected: "+YELLOW+file+RESET)
@@ -223,7 +237,8 @@ if run is not None:
             if cmd.__class__ == str:
                 cmd = cmd.split()
             for n, i in enumerate(cmd):
-                cmd[i] = cmd[i].replace("${ImplName}", impl)
+                cmd[i] = cmd[i].replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
             subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = e.communicate()
         except subprocess.CalledProcessError as e:
@@ -241,8 +256,10 @@ if debug is not None:
         try:
             e = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
             out, err = e.communicate()
-            out = out.decode().replace("${ImplName}", impl)
-            err = err.decode().replace("${ImplName}", impl)
+            out = out.decode().replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
+            err = err.decode().replace("${ImplName}", impl).\
+                    replace("${ProjRoot}", os.environ["VIMAKE_ROOT"])
         except subprocess.CalledProcessError as e:
             print(PREFIX+ERR+"Debug failed"+RESET)
             print(PREFIX+ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
@@ -255,3 +272,4 @@ if debug is not None:
 
 if lvl == 0:
     del os.environ["VIMAKE_LEVEL"]
+    del os.environ["VIMAKE_ROOT"]
