@@ -1,5 +1,5 @@
 #!/bin/env python3
-import os, sys, json, subprocess, colorama, yaml
+import os, sys, json, subprocess, colorama, yaml, struct
 from glob import glob
 from pprint import pprint as pp
 
@@ -18,6 +18,8 @@ ITASK = colorama.Fore.BLUE + colorama.Style.BRIGHT
 OK = PREFIX + colorama.Fore.GREEN + colorama.Style.BRIGHT
 RESET = colorama.Style.RESET_ALL
 YELLOW = colorama.Fore.YELLOW + colorama.Style.BRIGHT
+
+bitness = struct.calcsize("P") * 8
 
 # 1. read the config file
 
@@ -43,6 +45,12 @@ for ready_impl in globconfig["impls"]:
 def fill_impl(dict_or_list, impl, root=None):
     if root is None:
         root = dict_or_list
+    if "bitness" not in root:
+        root["bitness"] = {}
+    if "params" not in root:
+        root["params"] = {}
+    if "bitness" not in root["params"]:
+        root["params"]["bitness"] = bitness
     if isinstance(dict_or_list, dict):
         for k, v in dict_or_list.items():
             if isinstance(v, str):
@@ -64,7 +72,8 @@ if "autoimpls" in globconfig:
             # generate the impl from source impl to dest impls
             uimpl = {**globconfig["impls"][base_impl]}
             uimpl.update(globconfig["autoimpls"]["dest"][unready_impl])
-            ready_impls[unready_impl] = fill_impl(uimpl, unready_impl)
+            fill_impl(uimpl, unready_impl)
+            ready_impls[unready_impl] = uimpl
 
 # print("DEBUG: IMPLS:")
 # pp(ready_impls)
@@ -96,6 +105,8 @@ else:
 print(TASK+"Module "+YELLOW+module+(ITASK+" impl "+YELLOW+impl if not lvl else "")+RESET)
 
 # 3. read the dependencies
+
+# print(config)
 
 build, modules = config["deps"]["build"], config["deps"]["modules"]
 
@@ -160,6 +171,7 @@ if build is not None:
         file = os.path.join(os.getcwd(), file)
         if os.path.exists(file):
             os.remove(file)
+    outputs = ""
     for cmd in build["commands"]:
         try:
             if cmd.__class__ == str:
@@ -185,22 +197,21 @@ if build is not None:
                 out, err = e.communicate()
                 out = out.decode().replace("${ImplName}", impl)
                 err = err.decode().replace("${ImplName}", impl)
+                outputs += out + err
         except subprocess.CalledProcessError as e:
             print(ERR+"Build failed"+RESET)
             print(ERR+"Command: "+YELLOW+" ".join(cmd)+RESET)
             print(ERR+"Error code: "+YELLOW+str(e.returncode)+RESET)
             print(ERR+"Output: "+RESET)
-            print(PREFIX+out.replace("\n", "\n"+PREFIX+"    "))
-            print(PREFIX+err.replace("\n", "\n"+PREFIX+"    "))
+            print(PREFIX+outputs.replace("\n", "\n"+PREFIX+"    "))
             sys.exit(1)
     for file in build["files"]:
         file = file.replace("${ImplName}", impl)
         if not os.path.exists(file):
             print(PREFIX+ERR+"Build failed"+RESET)
             print(PREFIX+ERR+"Output file not detected: "+YELLOW+file+RESET)
-            print(PREFIX+ERR+"Last command output: "+RESET)
-            print(PREFIX+out.replace("\n", "\n"+PREFIX+PREFIX))
-            print(PREFIX+err.replace("\n", "\n"+PREFIX+PREFIX))
+            print(PREFIX+ERR+"Output: "+RESET)
+            print(PREFIX+outputs.replace("\n", "\n"+PREFIX+PREFIX))
             sys.exit(1)
 
 print(PREFIX+OK+"Build OK"+RESET)
